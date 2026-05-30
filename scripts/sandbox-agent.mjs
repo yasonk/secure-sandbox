@@ -214,7 +214,7 @@ function buildContainerCommand(command) {
   if (command[0] === 'codex') {
     return [
       'bash', '-lc',
-      'printf \'%s\' "$OPENAI_API_KEY" | codex login --with-api-key && exec "$@"',
+      'cd /workspace 2>/dev/null; printf \'%s\' "$OPENAI_API_KEY" | codex login --with-api-key && exec "$@"',
       'codex-launcher',
       ...command
     ];
