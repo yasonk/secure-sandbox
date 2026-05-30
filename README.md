@@ -33,6 +33,26 @@ The first run builds the Docker container (2-3 minutes). Subsequent runs reuse t
 
 > **Note:** HTTPS interception and `enableInternet = false` require the Cloudflare runtime environment. Local development via `wrangler dev` uses `enableInternet = true` with HTTP-only interception.
 
+## Local sandbox agent CLI
+
+With `wrangler dev` running, use the local helper to start a Sandbox session,
+optionally clone a GitHub repo into `/workspace`, and attach an interactive
+command with `docker exec`:
+
+```bash
+npm run sagent -- --repo https://github.com/org/repo -- bash
+npm run sclaude -- --repo https://github.com/org/repo
+npm run scodex -- --repo https://github.com/org/repo
+```
+
+If `--repo` is omitted, the helper tries to use the current directory's
+`origin` remote. SSH-style GitHub remotes such as
+`git@github.com:org/repo.git` are converted to HTTPS before checkout.
+
+`sclaude` requires `ANTHROPIC_API_KEY` in `.dev.vars`. The container receives
+only `ANTHROPIC_BASE_URL=http://api.anthropic.com` and a dummy key; the Worker
+injects the real key when egressing to Anthropic.
+
 ## Deploy
 
 ```bash
@@ -47,6 +67,7 @@ Environment variables (set in `.dev.vars` locally, `wrangler secret` in producti
 | Variable              | Required | Description                                                                                  |
 | --------------------- | -------- | -------------------------------------------------------------------------------------------- |
 | `OPENAI_API_KEY`      | yes      | Injected into sandbox HTTP/HTTPS requests via the egress proxy. Never reaches the container. |
+| `ANTHROPIC_API_KEY`   | no       | Injected into Anthropic requests for `sclaude`. Never reaches the container.                  |
 | `AUTH_TOKEN`          | no       | If set, clients must provide `Authorization: Bearer <token>` or `?token=<token>`.            |
 | `SANDBOX_SLEEP_AFTER` | no       | How long the container stays alive after the last request. Default: `1m`.                    |
 
@@ -127,6 +148,7 @@ The Sandbox subclass combines three layers of network control to minimize data e
 | Host             | Protocol     | Action                                                             |
 | ---------------- | ------------ | ------------------------------------------------------------------ |
 | `api.openai.com` | HTTP + HTTPS | Allowed — Worker injects `OPENAI_API_KEY` and upgrades to HTTPS    |
+| `api.anthropic.com` | HTTP + HTTPS | Allowed — Worker injects `ANTHROPIC_API_KEY` and upgrades to HTTPS |
 | `github.com`     | HTTP + HTTPS | Allowed — upgrades to HTTPS (needed for `sandbox/setup` git clone) |
 | Everything else  | HTTP + HTTPS | Blocked with `403 Forbidden`                                       |
 | Non-HTTP traffic | Raw TCP      | Blocked by `enableInternet = false` for non-allowed hosts          |

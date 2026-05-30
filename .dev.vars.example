@@ -2,6 +2,10 @@
 # Never enters the container.
 OPENAI_API_KEY=sk-...
 
+# Anthropic API key - injected into sandbox requests via the egress proxy.
+# Required when running Claude Code inside the sandbox.
+# ANTHROPIC_API_KEY=sk-ant-...
+
 # Optional: bearer token for WebSocket auth. If set, clients must provide
 # Authorization: Bearer <token> header or ?token=<token> query param.
 # AUTH_TOKEN=your-secret-token

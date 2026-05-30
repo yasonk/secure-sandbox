@@ -28,6 +28,7 @@ export class Sandbox extends BaseSandbox<Env> {
 declare global {
   interface Env {
     OPENAI_API_KEY: string;
+    ANTHROPIC_API_KEY?: string;
     AUTH_TOKEN?: string;
     GITHUB_TOKEN?: string;
     SANDBOX_SLEEP_AFTER?: string;
@@ -49,6 +50,23 @@ Sandbox.outboundByHost = {
     headers.set('Authorization', `Bearer ${env.OPENAI_API_KEY}`);
     headers.delete('X-Api-Key');
     return fetch(`https://api.openai.com${url.pathname}${url.search}`, {
+      method: request.method,
+      headers,
+      body: request.body
+    });
+  },
+  'api.anthropic.com': async (request: Request, env: Env) => {
+    if (!env.ANTHROPIC_API_KEY) {
+      return new Response('ANTHROPIC_API_KEY is not configured', {
+        status: 500
+      });
+    }
+
+    const url = new URL(request.url);
+    const headers = new Headers(request.headers);
+    headers.set('X-Api-Key', env.ANTHROPIC_API_KEY);
+    headers.delete('Authorization');
+    return fetch(`https://api.anthropic.com${url.pathname}${url.search}`, {
       method: request.method,
       headers,
       body: request.body
@@ -175,7 +193,9 @@ async function ensureCodexRunning(
 
   await sandbox.setEnvVars({
     OPENAI_BASE_URL: 'http://api.openai.com/v1',
-    OPENAI_API_KEY: 'proxy-injected'
+    OPENAI_API_KEY: 'proxy-injected',
+    ANTHROPIC_BASE_URL: 'http://api.anthropic.com',
+    ANTHROPIC_API_KEY: 'proxy-injected'
   });
 
   await sandbox.exec(
