@@ -13,7 +13,11 @@
     "scodex": "node scripts/sandbox-agent.mjs",
     "cf-typegen": "wrangler types",
     "typecheck": "tsc --noEmit",
-    "test": "./run-integration-tests.sh"
+    "test": "npm run test:unit && npm run test:integration:web",
+    "test:unit": "node --test test/unit/*.test.mjs test/claude/*.test.mjs test/codex/*.test.mjs test/integration/local-cli.test.mjs",
+    "test:integration:web": "bash test/run-integration-tests.sh test/integration/web-app.test.mjs",
+    "test:integration:legacy": "./run-integration-tests.sh",
+    "test:egress": "bash test/run-integration-tests.sh test-egress.mjs"
   },
   "devDependencies": {
     "@cloudflare/sandbox": "^0.10.2",

@@ -45,6 +45,13 @@ npm run sclaude -- --repo https://github.com/org/repo
 npm run scodex -- --repo https://github.com/org/repo
 ```
 
+For automation, pass `--no-tty` so the helper uses non-interactive
+`docker exec -i` instead of `docker exec -it`:
+
+```bash
+npm run sagent -- --session cli-test --no-setup --no-tty -- sh -lc 'echo CLI_OK'
+```
+
 If `--repo` is omitted, the helper tries to use the current directory's
 `origin` remote. SSH-style GitHub remotes such as
 `git@github.com:org/repo.git` are converted to HTTPS before checkout.
@@ -173,18 +180,36 @@ The WebSocket endpoint is injected into the HTML via `HTMLRewriter` setting a `d
 
 ## Testing
 
-### Integration test
+### Unit and launcher tests
+
+```bash
+npm run test:unit
+```
+
+Runs fast Node tests under `test/` for the local launcher, Claude/Codex
+bootstrap wrappers, and fake CLI execution. These tests do not require Docker,
+Wrangler, network access, or API credentials.
+
+### WebSocket integration test
 
 ```bash
 npm test
+npm run test:integration:web
 ```
 
-Runs `run-integration-tests.sh`, which starts `wrangler dev`, waits for readiness, then runs `test.mjs`. The test connects via WebSocket and exercises the full flow: `sandbox/setup` repo clone, `initialize` handshake, `thread/start`, and `turn/start` with streaming delta collection.
+Runs unit tests, then starts `wrangler dev`, waits for readiness, and runs the
+WebSocket integration suite. The integration tests connect to `/ws/<session>`
+and exercise bridge behavior such as `initialize`, `thread/start`,
+`sandbox/setup`, `sandbox/exec`, session isolation, and reconnect reset.
+
+`./run-integration-tests.sh` remains as a compatibility wrapper around
+`test/run-integration-tests.sh`.
 
 ### Egress validation
 
 ```bash
-node test-egress.mjs                    # against localhost:8787
+npm run test:egress                     # starts wrangler dev, runs egress checks
+node test-egress.mjs                    # against an already-running localhost:8787
 WS_URL=wss://your-app.workers.dev/ws/test node test-egress.mjs  # against production
 ```
 
