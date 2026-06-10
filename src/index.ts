@@ -29,6 +29,7 @@ declare global {
   interface Env {
     OPENAI_API_KEY: string;
     ANTHROPIC_API_KEY?: string;
+    CLAUDE_CODE_OAUTH_TOKEN?: string;
     AUTH_TOKEN?: string;
     GITHUB_TOKEN?: string;
     SANDBOX_SLEEP_AFTER?: string;
@@ -56,21 +57,44 @@ Sandbox.outboundByHost = {
     });
   },
   'api.anthropic.com': async (request: Request, env: Env) => {
-    if (!env.ANTHROPIC_API_KEY) {
-      return new Response('ANTHROPIC_API_KEY is not configured', {
-        status: 500
-      });
-    }
-
     const url = new URL(request.url);
     const headers = new Headers(request.headers);
-    headers.set('X-Api-Key', env.ANTHROPIC_API_KEY);
-    headers.delete('Authorization');
-    return fetch(`https://api.anthropic.com${url.pathname}${url.search}`, {
+
+    // Claude picks the auth header based on which env var it sees in the
+    // container; mirror that choice here when swapping in the real secret.
+    if (headers.has('x-api-key') && env.ANTHROPIC_API_KEY) {
+      headers.set('x-api-key', env.ANTHROPIC_API_KEY);
+    } else if (env.CLAUDE_CODE_OAUTH_TOKEN) {
+      headers.set('Authorization', `Bearer ${env.CLAUDE_CODE_OAUTH_TOKEN}`);
+      headers.delete('x-api-key');
+    }
+
+    const resp = await fetch(`https://api.anthropic.com${url.pathname}${url.search}`, {
       method: request.method,
       headers,
       body: request.body
     });
+    console.log(`[egress] api.anthropic.com ${request.method} ${url.pathname} -> ${resp.status}`);
+    return resp;
+  },
+  'platform.claude.com': async (request: Request, env: Env) => {
+    // Claude Code's OAuth flow validates the subscription token here
+    // (e.g. /v1/oauth/hello) before hitting api.anthropic.com.
+    // TODO: need to verify that this code block is even needed. Should double-check if this path gets
+    //  executed actually or if this was part of some sort of debugging of a problem.
+    const url = new URL(request.url);
+    const headers = new Headers(request.headers);
+    if (env.CLAUDE_CODE_OAUTH_TOKEN) {
+      headers.set('Authorization', `Bearer ${env.CLAUDE_CODE_OAUTH_TOKEN}`);
+      headers.delete('x-api-key');
+    }
+    const resp = await fetch(`https://platform.claude.com${url.pathname}${url.search}`, {
+      method: request.method,
+      headers,
+      body: request.body
+    });
+    console.log(`[egress] platform.claude.com ${request.method} ${url.pathname} -> ${resp.status}`);
+    return resp;
   },
   'github.com': async (request: Request, env: Env) => {
     const url = new URL(request.url);
@@ -194,8 +218,7 @@ async function ensureCodexRunning(
   await sandbox.setEnvVars({
     OPENAI_BASE_URL: 'http://api.openai.com/v1',
     OPENAI_API_KEY: 'proxy-injected',
-    ANTHROPIC_BASE_URL: 'http://api.anthropic.com',
-    ANTHROPIC_API_KEY: 'proxy-injected'
+    ANTHROPIC_BASE_URL: 'http://api.anthropic.com'
   });
 
   await sandbox.exec(

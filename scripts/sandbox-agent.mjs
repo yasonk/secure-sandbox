@@ -219,6 +219,31 @@ function buildContainerCommand(command) {
       ...command
     ];
   }
+  if (command[0] === 'claude') {
+    // Claude Code's CLAUDE_CODE_OAUTH_TOKEN env var is unreliable (anthropics/
+    // claude-code#8938) and overrides the credentials file (#16238), so we seed
+    // ~/.claude/.credentials.json directly and mark onboarding complete. The
+    // dummy access token is swapped for the real one by the egress proxy; the
+    // far-future expiry stops Claude from attempting a token refresh.
+    const expiresAt = Date.now() + 365 * 24 * 60 * 60 * 1000;
+    const creds = JSON.stringify({
+      claudeAiOauth: {
+        accessToken: 'sk-ant-oat01-proxy-injected',
+        refreshToken: 'sk-ant-ort01-proxy-injected',
+        expiresAt,
+        scopes: ['user:inference', 'user:profile'],
+        subscriptionType: 'max'
+      }
+    });
+    const onboarding = JSON.stringify({ hasCompletedOnboarding: true });
+    const prelude =
+      'mkdir -p ~/.claude && ' +
+      `printf '%s' '${creds}' > ~/.claude/.credentials.json && ` +
+      'chmod 600 ~/.claude/.credentials.json && ' +
+      `printf '%s' '${onboarding}' > ~/.claude.json && ` +
+      'cd /workspace 2>/dev/null;';
+    return ['bash', '-lc', `${prelude} exec "$@"`, 'claude-launcher', ...command];
+  }
   return command;
 }
 
@@ -233,7 +258,6 @@ async function main() {
     'exec', '-it',
     '-e', 'OPENAI_API_KEY=proxy-injected',
     '-e', 'OPENAI_BASE_URL=http://api.openai.com/v1',
-    '-e', 'ANTHROPIC_API_KEY=proxy-injected',
     '-e', 'ANTHROPIC_BASE_URL=http://api.anthropic.com',
     containerId, ...command
   ], {

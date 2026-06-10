@@ -49,9 +49,10 @@ If `--repo` is omitted, the helper tries to use the current directory's
 `origin` remote. SSH-style GitHub remotes such as
 `git@github.com:org/repo.git` are converted to HTTPS before checkout.
 
-`sclaude` requires `ANTHROPIC_API_KEY` in `.dev.vars`. The container receives
-only `ANTHROPIC_BASE_URL=http://api.anthropic.com` and a dummy key; the Worker
-injects the real key when egressing to Anthropic.
+`sclaude` requires `CLAUDE_CODE_OAUTH_TOKEN` (subscription auth from
+`claude setup-token`) or `ANTHROPIC_API_KEY` in `.dev.vars`. The container
+receives only `ANTHROPIC_BASE_URL=http://api.anthropic.com` and a dummy
+credential; the Worker injects the real one when egressing to Anthropic.
 
 ## Deploy
 
@@ -67,7 +68,8 @@ Environment variables (set in `.dev.vars` locally, `wrangler secret` in producti
 | Variable              | Required | Description                                                                                  |
 | --------------------- | -------- | -------------------------------------------------------------------------------------------- |
 | `OPENAI_API_KEY`      | yes      | Injected into sandbox HTTP/HTTPS requests via the egress proxy. Never reaches the container. |
-| `ANTHROPIC_API_KEY`   | no       | Injected into Anthropic requests for `sclaude`. Never reaches the container.                  |
+| `CLAUDE_CODE_OAUTH_TOKEN`| no    | Subscription auth for `sclaude` (token from `claude setup-token`). Injected as a Bearer credential. Never reaches the container. |
+| `ANTHROPIC_API_KEY`   | no       | API-key auth for `sclaude`. Injected as `x-api-key`. Never reaches the container.            |
 | `AUTH_TOKEN`          | no       | If set, clients must provide `Authorization: Bearer <token>` or `?token=<token>`.            |
 | `SANDBOX_SLEEP_AFTER` | no       | How long the container stays alive after the last request. Default: `1m`.                    |
 
@@ -148,7 +150,8 @@ The Sandbox subclass combines three layers of network control to minimize data e
 | Host             | Protocol     | Action                                                             |
 | ---------------- | ------------ | ------------------------------------------------------------------ |
 | `api.openai.com` | HTTP + HTTPS | Allowed — Worker injects `OPENAI_API_KEY` and upgrades to HTTPS    |
-| `api.anthropic.com` | HTTP + HTTPS | Allowed — Worker injects `ANTHROPIC_API_KEY` and upgrades to HTTPS |
+| `api.anthropic.com` | HTTP + HTTPS | Allowed — Worker injects `CLAUDE_CODE_OAUTH_TOKEN` (Bearer) or `ANTHROPIC_API_KEY` (`x-api-key`) and upgrades to HTTPS |
+| `platform.claude.com` | HTTPS      | Allowed — Claude Code OAuth validation; Worker injects `CLAUDE_CODE_OAUTH_TOKEN` (Bearer) |
 | `github.com`     | HTTP + HTTPS | Allowed — upgrades to HTTPS (needed for `sandbox/setup` git clone) |
 | Everything else  | HTTP + HTTPS | Blocked with `403 Forbidden`                                       |
 | Non-HTTP traffic | Raw TCP      | Blocked by `enableInternet = false` for non-allowed hosts          |
